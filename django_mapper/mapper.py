@@ -1,4 +1,5 @@
 import logging
+from django.db import models
 
 class DataMapper:
     def __init__(self, config, target_model=None, enable_logging=False):
@@ -42,9 +43,13 @@ class DataMapper:
             return mapped_data
     
     def get_value(self, data, field):
+        current_data = data
         for f in field.split('__'):
-            data = data.get(f)
-        return data
+            if isinstance(data, models.Model):
+                current_data = getattr(current_data, field)
+            else:
+                current_data = current_data.get(f)
+        return current_data
     
     def set_value(self, data, field, value):
         fields = field.split('__')

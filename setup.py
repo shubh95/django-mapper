@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-mapper',
-    version='0.1.0',
+    version='1.1.0',
     description='A utility class for mapping data between Django models',
     author='Shubham Vashisht',
     author_email='shubhvas95@gmail.com',

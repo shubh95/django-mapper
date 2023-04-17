@@ -1,65 +1,71 @@
-from typing import Callable, Dict, Optional
-from django.db import models
-
+import logging
 
 class DataMapper:
-    def __init__(self, from_model: models.Model, to_model: models.Model):
-        self.from_model = from_model
-        self.to_model = to_model
-        self.mappings = []
+    def __init__(self, config, target_model=None, enable_logging=False):
+        self.config = config
+        self.target_model = target_model
+        self.enable_logging = enable_logging
+        self.logger = logging.getLogger(__name__)
+    
+    def map_data(self, data):
+        mapped_data = {}
+        for mapping in self.config:
+            to_field = mapping.get('to_field')
+            
+            from_field = mapping.get('from_field')
+            default_value = mapping.get('default_value')
 
-    def map_data(self, from_field: str, to_field: str, nullable: Optional[bool] = False) -> None:
-        self.mappings.append({
-            'from_field': from_field,
-            'to_field': to_field,
-            'nullable': nullable,
-        })
+            compute_method = mapping.get('compute_method')
 
-    def map_data_with_function(self, from_field: str, to_field: str, function: Callable, nullable: Optional[bool] = False) -> None:
-        self.mappings.append({
-            'from_field': from_field,
-            'to_field': to_field,
-            'function': function,
-            'nullable': nullable,
-        })
+            if to_field and compute_method:
+                raise ValueError("Both from_field and compute_field should be provided at same time, because it's conflicting")
 
-    def map_from_config(self, from_instance: models.Model) -> models.Model:
-        to_instance = self.to_model()
-        for mapping in self.mappings:
-            from_fields = mapping['from_field'].split('__')
-            from_value = from_instance
-            for field in from_fields:
-                from_value = getattr(from_value, field)
-            if mapping.get('function'):
-                from_value = mapping['function'](from_value)
-            if not mapping['nullable'] and not from_value:
-                raise ValueError(f"{from_instance} has a NULL value for a non-nullable field {mapping['from_field']}")
-            setattr(to_instance, mapping['to_field'], from_value)
-        return to_instance
+            if to_field:
+                try:
+                    value = self.get_value(data, from_field)
+                    mapped_data = self.set_value(mapped_data, to_field, value)
+                except KeyError:
+                    if default_value is not None:
+                        mapped_data = self.set_value(mapped_data, to_field, default_value)
 
-    def map_all_data(self):
-        from_instances = self.from_model.objects.all()
-        to_instances = []
-        for from_instance in from_instances:
-            to_instance = self.map_from_config(from_instance)
-            to_instances.append(to_instance)
-        self.to_model.objects.bulk_create(to_instances)
+            elif compute_method:
+                value = compute_method(value, data)
+                mapped_data = self.set_value(mapped_data, to_field, value)
+            else:
+                raise ValueError("from_field or compute_method should be provided")
 
-
-def create_mapper(config: Dict) -> DataMapper:
-    from_model = config['from_model']
-    to_model = config['to_model']
-    mappings = config['mappings']
-
-    mapper = DataMapper(from_model, to_model)
-    for mapping in mappings:
-        from_field = mapping['from_field']
-        to_field = mapping['to_field']
-        nullable = mapping.get('nullable', False)
-        if mapping.get('function'):
-            function = mapping['function']
-            mapper.map_data_with_function(from_field, to_field, function, nullable)
+        if self.target_model:
+            instance = self.create_instance(self.target_model, mapped_data)
+            self.logger.info(f"Created instance of {self.target_model.__name__}")
+            return instance
         else:
-            mapper.map_data(from_field, to_field, nullable)
-    return mapper
+            return mapped_data
+    
+    def get_value(self, data, field):
+        for f in field.split('__'):
+            data = data.get(f)
+        return data
+    
+    def set_value(self, data, field, value):
+        fields = field.split('__')
+        for f in fields[:-1]:
+            if f not in data:
+                data[f] = {}
+            data = data[f]
+        data[fields[-1]] = value
+        return data
+    
+    def create_instance(self, model, data):
+        instance_kwargs = {}
+        for key, value in data.items():
+            if isinstance(value, dict):
+                field = getattr(instance, key)
+                related_model = field.related_model
 
+                related_model_instance = self.create_instance(related_model, value)
+                instance_kwargs[key] = related_model_instance
+            else:
+                instance_kwargs[key] = value
+        
+        instance = model.objects.create(**instance_kwargs)
+        return instance

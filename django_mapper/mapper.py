@@ -18,10 +18,10 @@ class DataMapper:
 
             compute_method = mapping.get('compute_method')
 
-            if to_field and compute_method:
+            if from_field and compute_method:
                 raise ValueError("Both from_field and compute_field should be provided at same time, because it's conflicting")
 
-            if to_field:
+            if from_field:
                 try:
                     value = self.get_value(data, from_field)
                     mapped_data = self.set_value(mapped_data, to_field, value)
@@ -30,7 +30,7 @@ class DataMapper:
                         mapped_data = self.set_value(mapped_data, to_field, default_value)
 
             elif compute_method:
-                value = compute_method(value, data)
+                value = compute_method(data)
                 mapped_data = self.set_value(mapped_data, to_field, value)
             else:
                 raise ValueError("from_field or compute_method should be provided")

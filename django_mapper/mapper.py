@@ -85,6 +85,9 @@ class DataMapper:
         instance_kwargs = {}
         m2m_fields = {}
         for key, value in data.items():
+            if value is None:
+                continue
+
             if isinstance(value, dict):
                 field = model._meta.get_field(key)
                 related_model = field.related_model
@@ -101,9 +104,9 @@ class DataMapper:
                         related_model_instance = self.create_instance(related_model, single_value)
                     
                     if key in m2m_fields:
-                        m2m_fields[key].append(single_value)
+                        m2m_fields[key].append(related_model_instance)
                     else:
-                        m2m_fields[key] = [single_value]
+                        m2m_fields[key] = [related_model_instance]
 
             else:
                 instance_kwargs[key] = value

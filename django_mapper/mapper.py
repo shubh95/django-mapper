@@ -9,7 +9,7 @@ class DataMapper:
         self.enable_logging = enable_logging
         self.logger = logging.getLogger(__name__)
     
-    def map_data(self, data):
+    def map_data(self, data, default_values={}):
         mapped_data = {}
         for mapping in self.config:
             to_field = mapping.get('to_field')
@@ -38,8 +38,11 @@ class DataMapper:
             else:
                 raise ValueError("from_field or compute_method should be provided")
 
+        if default_values:
+            mapped_data.update(default_values)
+
         if self.target_model:
-            instance = self.create_instance(self.target_model, mapped_data)
+            instance = self.create_instance(self.target_model, mapped_data, default_values=default_values)
             self.logger.info(f"Created instance of {self.target_model.__name__}")
             return instance
         else:
@@ -64,7 +67,7 @@ class DataMapper:
                 m2m_mapper = mapper
             
             for m2m_instance in unserialized_data:
-                serialized_instance = m2m_mapper.map_data(m2m_instance)
+                serialized_instance = m2m_mapper.map_data(m2m_instance, )
                 current_data.append(serialized_instance)
 
         return current_data
@@ -78,7 +81,7 @@ class DataMapper:
         data[fields[-1]] = value
         return data
     
-    def create_instance(self, model, data):
+    def create_instance(self, model, data, default_values={}):
         instance_kwargs = {}
         m2m_fields = {}
         for key, value in data.items():
@@ -105,6 +108,7 @@ class DataMapper:
             else:
                 instance_kwargs[key] = value
         
+        instance_kwargs.update(default_values)
         instance = model.objects.create(**instance_kwargs)
 
         save_again =  False
@@ -114,5 +118,5 @@ class DataMapper:
 
         if save_again:
             instance.save()
-            
+
         return instance

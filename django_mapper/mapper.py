@@ -116,7 +116,7 @@ class DataMapper:
 
         save_again =  False
         for m2m_field in m2m_fields:
-            getattr(instance, m2m_field).add(**m2m_fields[m2m_field])
+            getattr(instance, m2m_field).add(*m2m_fields[m2m_field])
             save_again = True
 
         if save_again:

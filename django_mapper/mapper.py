@@ -26,7 +26,7 @@ class DataMapper:
 
             if from_field:
                 try:
-                    value = self.get_value(data, from_field, mapper=mapper)
+                    value = self.get_value(data, from_field, mapper=mapper, dont_save=dont_save)
                     mapped_data = self.set_value(mapped_data, to_field, value)
                 except KeyError:
                     if default_value is not None:
@@ -48,7 +48,7 @@ class DataMapper:
         else:
             return mapped_data
     
-    def get_value(self, data, field, mapper=None):
+    def get_value(self, data, field, mapper=None, dont_save=False):
         current_data = data
         for f in field.split('__'):
             if isinstance(data, models.Model):
@@ -67,7 +67,7 @@ class DataMapper:
                 m2m_mapper = mapper
             
             for m2m_instance in unserialized_data:
-                serialized_instance = m2m_mapper.map_data(m2m_instance, )
+                serialized_instance = m2m_mapper.map_data(m2m_instance, dont_save=dont_save)
                 current_data.append(serialized_instance)
 
         return current_data
@@ -99,12 +99,15 @@ class DataMapper:
                 related_model = field.related_model
 
                 for single_value in value:
-                    related_model_instance = single_value
-                    related_m2m_field = {}
-                    print(single_value, related_model)
-                    if not isinstance(single_value, related_model):
-                        print("dont_save", dont_save)
-                        related_data = self.create_instance(related_model, single_value, dont_save=dont_save)
+                    if not dont_save:
+                        related_model_instance = single_value
+                        related_m2m_field = {}
+                    else:
+                        related_model_instance = single_value[0]
+                        related_m2m_field = single_value[1]
+
+                    if not isinstance(related_model_instance, related_model):
+                        related_data = self.create_instance(related_model, related_model_instance, dont_save=dont_save)
 
                         if dont_save:
                             related_model_instance = related_data[0]

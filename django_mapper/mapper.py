@@ -100,13 +100,27 @@ class DataMapper:
 
                 for single_value in value:
                     related_model_instance = single_value
+                    related_m2m_field = {}
+                    print(single_value, related_model)
                     if not isinstance(single_value, related_model):
-                        related_model_instance = self.create_instance(related_model, single_value, dont_save=dont_save)
+                        print("dont_save", dont_save)
+                        related_data = self.create_instance(related_model, single_value, dont_save=dont_save)
+
+                        if dont_save:
+                            related_model_instance = related_data[0]
+                            related_m2m_field = related_data[1]
+                        else:
+                            related_m2m_field = {}
+                            related_model_instance = related_data
+                    
+                    related_data = related_model_instance
+                    if dont_save:
+                        related_data = related_model_instance, related_m2m_field
                     
                     if key in m2m_fields:
-                        m2m_fields[key].append(related_model_instance)
+                        m2m_fields[key].append(related_data)
                     else:
-                        m2m_fields[key] = [related_model_instance]
+                        m2m_fields[key] = [related_data]
 
             else:
                 instance_kwargs[key] = value

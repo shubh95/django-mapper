@@ -9,7 +9,7 @@ class DataMapper:
         self.enable_logging = enable_logging
         self.logger = logging.getLogger(__name__)
     
-    def map_data(self, data, default_values={}):
+    def map_data(self, data, default_values={}, dont_save=False):
         mapped_data = {}
         for mapping in self.config:
             to_field = mapping.get('to_field')
@@ -42,7 +42,7 @@ class DataMapper:
             mapped_data.update(default_values)
 
         if self.target_model:
-            instance = self.create_instance(self.target_model, mapped_data, default_values=default_values)
+            instance = self.create_instance(self.target_model, mapped_data, default_values=default_values, dont_save=dont_save)
             self.logger.info(f"Created instance of {self.target_model.__name__}")
             return instance
         else:
@@ -81,7 +81,7 @@ class DataMapper:
         data[fields[-1]] = value
         return data
     
-    def create_instance(self, model, data, default_values={}):
+    def create_instance(self, model, data, default_values={}, dont_save=False):
         instance_kwargs = {}
         m2m_fields = {}
         for key, value in data.items():
@@ -101,7 +101,7 @@ class DataMapper:
                 for single_value in value:
                     related_model_instance = single_value
                     if not isinstance(single_value, related_model):
-                        related_model_instance = self.create_instance(related_model, single_value)
+                        related_model_instance = self.create_instance(related_model, single_value, dont_save=dont_save)
                     
                     if key in m2m_fields:
                         m2m_fields[key].append(related_model_instance)
@@ -112,14 +112,20 @@ class DataMapper:
                 instance_kwargs[key] = value
         
         instance_kwargs.update(default_values)
-        instance = model.objects.create(**instance_kwargs)
 
-        save_again =  False
-        for m2m_field in m2m_fields:
-            getattr(instance, m2m_field).add(*m2m_fields[m2m_field])
-            save_again = True
+        if not dont_save:
+            instance = model.objects.create(**instance_kwargs)
 
-        if save_again:
-            instance.save()
+            save_again =  False
+            for m2m_field in m2m_fields:
+                getattr(instance, m2m_field).add(*m2m_fields[m2m_field])
+                save_again = True
 
-        return instance
+            if save_again:
+                instance.save()
+
+            return instance
+        else:
+            instance = model(**instance_kwargs)
+
+            return instance, m2m_fields
